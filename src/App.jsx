@@ -13,9 +13,9 @@ const TELEGRAM_USER = {
 };
 
 const MAKE_PLAYERS = () => [
-  { id: 1, name: "@andryukh", bet: 11, color: "#FF4D4D", initials: "AN", photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=andryukh&backgroundColor=transparent" },
-  { id: 2, name: "@iqpd", bet: 50, color: "#4D79FF", initials: "IQ", photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=iqpd&backgroundColor=transparent" },
-  { id: 3, name: "@stepa", bet: 25, color: "#FFB800", initials: "ST", photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=stepa&backgroundColor=transparent" },
+  { id: 1, name: "@andryukh", bet: 11, color: "#FF4D4D", initials: "AN", photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=andryukh&backgroundColor=transparent", msg: "" },
+  { id: 2, name: "@iqpd", bet: 50, color: "#4D79FF", initials: "IQ", photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=iqpd&backgroundColor=transparent", msg: "let's go!" },
+  { id: 3, name: "@stepa", bet: 25, color: "#FFB800", initials: "ST", photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=stepa&backgroundColor=transparent", msg: "🔥" },
 ];
 
 const F = { fontFamily: "'Inter', sans-serif" };
@@ -99,10 +99,11 @@ export default function App() {
   const [showJoin, setShowJoin] = useState(false);
   const [joinBet, setJoinBet] = useState("");
   const [joinError, setJoinError] = useState("");
-  const [gameNum, setGameNum] = useState(415660);
+  const [gameNum, setGameNum] = useState(1);
   const [showResult, setShowResult] = useState(false);
   const [confetti, setConfetti] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [myMsg, setMyMsg] = useState("");
   const playersRef = useRef(players);
   const totalRef = useRef(0);
   const sound = useSound();
@@ -157,6 +158,7 @@ export default function App() {
       const ay = cy + r * 0.74 * Math.sin(mid);
       const ar = 18;
 
+      // Avatar
       ctx.save();
       ctx.beginPath(); ctx.arc(ax, ay, ar, 0, Math.PI * 2); ctx.clip();
       const img = p.photo ? getImg(p.photo) : null;
@@ -175,9 +177,39 @@ export default function App() {
       ctx.beginPath(); ctx.arc(ax, ay, ar, 0, Math.PI * 2);
       ctx.strokeStyle = p.color; ctx.lineWidth = 2; ctx.stroke();
 
+      // Message bubble
+      if (p.msg && p.msg.trim()) {
+        const msgX = cx + r * 0.74 * Math.cos(mid);
+        const msgY = cy + r * 0.74 * Math.sin(mid) - ar - 8;
+        const text = p.msg.length > 10 ? p.msg.slice(0, 10) + "…" : p.msg;
+        ctx.font = "500 10px 'Inter', sans-serif";
+        const tw = ctx.measureText(text).width;
+        const bw = tw + 12, bh = 18, br = 6;
+        const bx = msgX - bw/2, by = msgY - bh;
+
+        ctx.beginPath();
+        ctx.moveTo(bx + br, by);
+        ctx.lineTo(bx + bw - br, by);
+        ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + br);
+        ctx.lineTo(bx + bw, by + bh - br);
+        ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - br, by + bh);
+        ctx.lineTo(bx + br, by + bh);
+        ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - br);
+        ctx.lineTo(bx, by + br);
+        ctx.quadraticCurveTo(bx, by, bx + br, by);
+        ctx.closePath();
+        ctx.fillStyle = p.color + "dd";
+        ctx.fill();
+
+        ctx.fillStyle = "#fff";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(text, msgX, by + bh/2);
+      }
+
       start += slice;
     });
 
+    // Center
     ctx.beginPath(); ctx.arc(cx, cy, 42, 0, Math.PI * 2);
     ctx.fillStyle = "#17212B"; ctx.fill();
     ctx.strokeStyle = "#ffffff10"; ctx.lineWidth = 1; ctx.stroke();
@@ -228,7 +260,7 @@ export default function App() {
         setShowResult(true);
         setConfetti(true);
         sound.win();
-        setHistory(h => [{ winner: w.name, pot: currentTotal, multiplier, time: "just now", photo: w.photo, color: w.color, initials: w.initials }, ...h.slice(0, 19)]);
+        setHistory(h => [{ winner: w.name, pot: currentTotal, multiplier, time: "just now", color: w.color }, ...h.slice(0, 19)]);
         setTimeout(() => {
           setConfetti(false);
           setShowResult(false);
@@ -236,6 +268,7 @@ export default function App() {
           setGameNum(n => n + 1);
           setTimer(20);
           setPlayers(MAKE_PLAYERS());
+          setMyMsg("");
         }, 5500);
       }
     }
@@ -252,16 +285,24 @@ export default function App() {
       setPlayers(pl => pl.map(p => p.name === TELEGRAM_USER.name ? { ...p, bet: p.bet + bet } : p));
     } else {
       const color = COLORS[players.length % COLORS.length];
-      setPlayers(p => [...p, { id: Date.now(), name: TELEGRAM_USER.name, bet, color, initials: TELEGRAM_USER.initials, photo: TELEGRAM_USER.photo }]);
+      setPlayers(p => [...p, { id: Date.now(), name: TELEGRAM_USER.name, bet, color, initials: TELEGRAM_USER.initials, photo: TELEGRAM_USER.photo, msg: "" }]);
     }
     setJoinBet("");
     setShowJoin(false);
     setTimer(t => Math.max(t, 10));
   }
 
-  const pad = n => String(n).padStart(2, "0");
+  function handleSendMsg(e) {
+    e.preventDefault();
+    if (!myMsg.trim()) return;
+    setPlayers(pl => pl.map(p =>
+      p.name === TELEGRAM_USER.name ? { ...p, msg: myMsg.trim() } : p
+    ));
+  }
 
-  // Result overlay
+  const pad = n => String(n).padStart(2, "0");
+  const myPlayer = players.find(p => p.name === TELEGRAM_USER.name);
+
   if (showResult && winner) {
     return (
       <div style={{ minHeight: "100vh", background: "#17212B", color: "#fff", ...F, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", maxWidth: 400, margin: "0 auto", padding: "20px 16px", gap: 20 }}>
@@ -270,13 +311,12 @@ export default function App() {
           <div style={{ width: 80, height: 80, borderRadius: "50%", background: winner.color + "25", border: `3px solid ${winner.color}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", overflow: "hidden" }}>
             {winner.photo && imgCache.current[winner.photo]?.complete
               ? <img src={winner.photo} style={{ width: "100%", height: "100%", borderRadius: "50%" }} />
-              : <span style={{ fontSize: 24, fontWeight: 700, color: winner.color, ...F }}>{winner.initials}</span>
-            }
+              : <span style={{ fontSize: 24, fontWeight: 700, color: winner.color }}>{winner.initials}</span>}
           </div>
           <div style={{ fontSize: 12, color: "#ffffff44", letterSpacing: 3, marginBottom: 6 }}>WINNER</div>
           <div style={{ fontSize: 26, fontWeight: 700, color: winner.color, marginBottom: 16 }}>{winner.name}</div>
           <div style={{ fontSize: 52, fontWeight: 800, color: "#fff", lineHeight: 1 }}>${totalRef.current}</div>
-          <div style={{ fontSize: 16, color: "#00C896", fontWeight: 600, marginTop: 10 }}>x{winner.multiplier} multiplier</div>
+          <div style={{ fontSize: 18, color: "#00C896", fontWeight: 600, marginTop: 10 }}>x{winner.multiplier} multiplier</div>
         </div>
         <style>{`
           @keyframes popIn { from { opacity:0; transform:scale(0.5); } to { opacity:1; transform:scale(1); } }
@@ -290,20 +330,12 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: "#17212B", color: "#fff", ...F, display: "flex", flexDirection: "column", alignItems: "center", maxWidth: 400, margin: "0 auto", padding: "0 0 24px", opacity: loaded ? 1 : 0, transition: "opacity 0.4s ease" }}>
 
       {/* Header */}
-      <div style={{ width: "100%", padding: "16px 16px 10px", borderBottom: "1px solid #ffffff08" }}>
-        <div style={{ textAlign: "center", fontSize: 18, fontWeight: 700, letterSpacing: 0.5, marginBottom: 10 }}>RollTheBand</div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ background: "#1E2C3A", borderRadius: 10, padding: "6px 14px", textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: "#ffffff33", letterSpacing: 1 }}>TOTAL POT</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#00C896" }}>${total}</div>
-          </div>
-          <div style={{ fontSize: 11, color: "#ffffff33" }}>Game #{gameNum}</div>
-          <div style={{ background: "#1E2C3A", borderRadius: 10, padding: "6px 14px", textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: "#ffffff33", letterSpacing: 1 }}>TOP WIN</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#FFB800" }}>
-              {history.length > 0 ? `$${Math.max(...history.map(h => h.pot))}` : "—"}
-            </div>
-          </div>
+      <div style={{ width: "100%", padding: "14px 16px 12px", borderBottom: "1px solid #ffffff08", textAlign: "center" }}>
+        <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: 0.5, marginBottom: 2 }}>RollTheBand</div>
+        <div style={{ fontSize: 11, color: "#ffffff33", marginBottom: 10 }}>Game #{gameNum}</div>
+        <div style={{ background: "#1E2C3A", borderRadius: 12, padding: "10px 20px", display: "inline-block" }}>
+          <div style={{ fontSize: 10, color: "#ffffff33", letterSpacing: 1, marginBottom: 2 }}>TOTAL POT</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: "#00C896" }}>${total}</div>
         </div>
       </div>
 
@@ -311,7 +343,7 @@ export default function App() {
       {history.length > 0 && (
         <div style={{ width: "100%", display: "flex", justifyContent: "space-between", padding: "7px 16px", background: "#1E2C3A", borderBottom: "1px solid #ffffff06", fontSize: 11 }}>
           <div style={{ color: "#ffffff44" }}>Last: <span style={{ color: "#FF4D4D" }}>{history[0].winner}</span> +${history[0].pot}</div>
-          <div style={{ color: "#ffffff44" }}>x{history[0].multiplier}</div>
+          <div style={{ color: "#FFB800", fontWeight: 600 }}>x{history[0].multiplier}</div>
         </div>
       )}
 
@@ -330,31 +362,45 @@ export default function App() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats — only your chance and bet */}
       <div style={{ display: "flex", gap: 8, padding: "0 16px", marginBottom: 14, width: "100%" }}>
-        <div style={{ flex: 1, background: "#1E2C3A", borderRadius: 10, padding: "8px 12px", textAlign: "center" }}>
-          <div style={{ fontSize: 10, color: "#ffffff33" }}>PLAYERS</div>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>{players.length}</div>
-        </div>
         <div style={{ flex: 1, background: "#1E2C3A", borderRadius: 10, padding: "8px 12px", textAlign: "center" }}>
           <div style={{ fontSize: 10, color: "#ffffff33" }}>YOUR CHANCE</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: "#00C896" }}>
-            {players.find(p => p.name === TELEGRAM_USER.name) ? Math.round(players.find(p => p.name === TELEGRAM_USER.name).bet / total * 100) + "%" : "—"}
+            {myPlayer ? Math.round(myPlayer.bet / total * 100) + "%" : "—"}
           </div>
         </div>
         <div style={{ flex: 1, background: "#1E2C3A", borderRadius: 10, padding: "8px 12px", textAlign: "center" }}>
           <div style={{ fontSize: 10, color: "#ffffff33" }}>YOUR BET</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: "#2AABEE" }}>
-            {players.find(p => p.name === TELEGRAM_USER.name) ? "$" + players.find(p => p.name === TELEGRAM_USER.name).bet : "—"}
+            {myPlayer ? "$" + myPlayer.bet : "—"}
           </div>
         </div>
       </div>
+
+      {/* Message input — only if player joined */}
+      {myPlayer && !spinning && (
+        <div style={{ width: "calc(100% - 32px)", marginBottom: 14 }}>
+          <form onSubmit={handleSendMsg} style={{ display: "flex", gap: 8 }}>
+            <input
+              placeholder="Send a message on the wheel..."
+              value={myMsg}
+              onChange={e => setMyMsg(e.target.value)}
+              maxLength={20}
+              style={{ flex: 1, padding: "11px 14px", borderRadius: 12, border: "1px solid #ffffff10", background: "#1E2C3A", color: "#fff", fontSize: 13, ...F, outline: "none", boxSizing: "border-box" }}
+            />
+            <button type="submit" style={{ padding: "11px 16px", borderRadius: 12, border: "none", background: "#2AABEE", color: "#fff", fontSize: 13, fontWeight: 600, ...F, cursor: "pointer" }}>
+              Send
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Join form */}
       {showJoin && !spinning && (
         <div style={{ width: "calc(100% - 32px)", background: "#1E2C3A", border: "1px solid #ffffff10", borderRadius: 16, padding: 16, marginBottom: 14, animation: "fadeIn 0.3s ease" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            <div style={{ width: 38, height: 38, borderRadius: "50%", background: TELEGRAM_USER.color + "25", border: `2px solid ${TELEGRAM_USER.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: TELEGRAM_USER.color, flexShrink: 0, overflow: "hidden" }}>
+            <div style={{ width: 38, height: 38, borderRadius: "50%", background: TELEGRAM_USER.color + "25", border: `2px solid ${TELEGRAM_USER.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: TELEGRAM_USER.color, flexShrink: 0 }}>
               {TELEGRAM_USER.initials}
             </div>
             <div style={{ flex: 1 }}>
@@ -364,7 +410,7 @@ export default function App() {
             <div style={{ fontSize: 10, color: "#00C896", background: "#00C89615", padding: "3px 8px", borderRadius: 20 }}>verified ✓</div>
           </div>
           <div style={{ fontSize: 12, color: "#ffffff44", marginBottom: 8 }}>
-            {players.find(p => p.name === TELEGRAM_USER.name) ? `Add to bet (current: $${players.find(p => p.name === TELEGRAM_USER.name).bet})` : "Enter bet amount"}
+            {myPlayer ? `Add to bet (current: $${myPlayer.bet})` : "Enter bet amount"}
           </div>
           <input placeholder="0" type="number" min="1" value={joinBet} onChange={e => setJoinBet(e.target.value)}
             style={{ width: "100%", padding: "13px 14px", borderRadius: 12, border: "1px solid #ffffff10", background: "#17212B", color: "#fff", fontSize: 18, fontWeight: 700, ...F, marginBottom: joinError ? 8 : 12, outline: "none", boxSizing: "border-box" }} />
@@ -392,30 +438,21 @@ export default function App() {
         </div>
       )}
 
-      {/* Players */}
+      {/* Players list */}
       <div style={{ width: "calc(100% - 32px)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>{players.length} Players</div>
-          <div style={{ fontSize: 11, color: "#ffffff33" }}>Game #{gameNum}</div>
-        </div>
         {players.map(p => (
-          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "#1E2C3A", borderRadius: 14, marginBottom: 8 }}>
-            <div style={{ width: 42, height: 42, borderRadius: "50%", background: p.color + "20", border: `2px solid ${p.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: p.color, flexShrink: 0, overflow: "hidden" }}>
-              {p.photo && imgCache.current[p.photo]?.complete
-                ? <img src={p.photo} style={{ width: "100%", height: "100%" }} />
-                : p.initials}
+          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "#1E2C3A", borderRadius: 14, marginBottom: 8 }}>
+            <div style={{ width: 38, height: 38, borderRadius: "50%", background: p.color + "20", border: `2px solid ${p.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: p.color, flexShrink: 0, overflow: "hidden" }}>
+              {p.photo && imgCache.current[p.photo]?.complete ? <img src={p.photo} style={{ width: "100%", height: "100%" }} /> : p.initials}
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</div>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, background: p.color + "18", border: `1px solid ${p.color}33`, borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 600, color: p.color }}>
-                ${p.bet}
-              </div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</div>
+              {p.msg && <div style={{ fontSize: 11, color: p.color, marginTop: 2 }}>💬 {p.msg}</div>}
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{Math.round(p.bet / total * 100)}%</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: p.color }}>{Math.round(p.bet / total * 100)}%</div>
               <div style={{ fontSize: 11, color: "#ffffff33" }}>${p.bet}</div>
             </div>
-            <div style={{ color: "#ffffff15", fontSize: 18 }}>›</div>
           </div>
         ))}
       </div>
