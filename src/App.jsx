@@ -89,7 +89,7 @@ function useSound() {
 
 export default function App() {
   const canvasRef = useRef(null);
-  const angleRef = useRef(-Math.PI / 2);
+  const angleRef = useRef(0);
   const lastTickAngle = useRef(0);
   const [players, setPlayers] = useState(MAKE_PLAYERS());
   const [spinning, setSpinning] = useState(false);
@@ -144,7 +144,11 @@ export default function App() {
     ctx.clearRect(0, 0, size, size);
     if (pl.length === 0) return;
 
-    let start = rotation;
+    // Arrow points UP = -Math.PI/2
+    // We offset drawing so first sector starts at top
+    const startOffset = rotation - Math.PI / 2;
+
+    let start = startOffset;
     pl.forEach((p) => {
       const slice = (p.bet / tot) * Math.PI * 2;
       ctx.beginPath(); ctx.moveTo(cx, cy);
@@ -158,7 +162,6 @@ export default function App() {
       const ay = cy + r * 0.74 * Math.sin(mid);
       const ar = 18;
 
-      // Avatar
       ctx.save();
       ctx.beginPath(); ctx.arc(ax, ay, ar, 0, Math.PI * 2); ctx.clip();
       const img = p.photo ? getImg(p.photo) : null;
@@ -179,14 +182,13 @@ export default function App() {
 
       // Message bubble
       if (p.msg && p.msg.trim()) {
-        const msgX = cx + r * 0.74 * Math.cos(mid);
-        const msgY = cy + r * 0.74 * Math.sin(mid) - ar - 8;
         const text = p.msg.length > 10 ? p.msg.slice(0, 10) + "…" : p.msg;
+        const bubbleX = cx + r * 0.74 * Math.cos(mid);
+        const bubbleY = cy + r * 0.74 * Math.sin(mid) - ar - 6;
         ctx.font = "500 10px 'Inter', sans-serif";
         const tw = ctx.measureText(text).width;
-        const bw = tw + 12, bh = 18, br = 6;
-        const bx = msgX - bw/2, by = msgY - bh;
-
+        const bw = tw + 12, bh = 16, br = 5;
+        const bx = bubbleX - bw/2, by = bubbleY - bh;
         ctx.beginPath();
         ctx.moveTo(bx + br, by);
         ctx.lineTo(bx + bw - br, by);
@@ -198,26 +200,26 @@ export default function App() {
         ctx.lineTo(bx, by + br);
         ctx.quadraticCurveTo(bx, by, bx + br, by);
         ctx.closePath();
-        ctx.fillStyle = p.color + "dd";
-        ctx.fill();
-
+        ctx.fillStyle = p.color + "dd"; ctx.fill();
         ctx.fillStyle = "#fff";
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText(text, msgX, by + bh/2);
+        ctx.fillText(text, bubbleX, by + bh/2);
       }
 
       start += slice;
     });
 
-    // Center
     ctx.beginPath(); ctx.arc(cx, cy, 42, 0, Math.PI * 2);
     ctx.fillStyle = "#17212B"; ctx.fill();
     ctx.strokeStyle = "#ffffff10"; ctx.lineWidth = 1; ctx.stroke();
   }
 
+  // Arrow is at top (-PI/2), wheel drawn with offset
+  // Winner = sector that is at top when wheel stops
   function getWinner(finalAngle, pl) {
     const tot = pl.reduce((s, p) => s + p.bet, 0);
-    const norm = (((-finalAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2));
+    // Normalize: which angle of the wheel is at top (arrow position)?
+    const norm = ((-finalAngle) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
     let acc = 0;
     for (let p of pl) {
       acc += (p.bet / tot) * Math.PI * 2;
@@ -236,7 +238,7 @@ export default function App() {
     totalRef.current = currentTotal;
     const extraSpins = (8 + Math.floor(Math.random() * 4)) * Math.PI * 2;
     const randStop = Math.random() * Math.PI * 2;
-    const target = angleRef.current - extraSpins - randStop;
+    const target = angleRef.current + extraSpins + randStop;
     const duration = 6500;
     const startTime = performance.now();
     const startAngle = angleRef.current;
@@ -329,7 +331,6 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: "#17212B", color: "#fff", ...F, display: "flex", flexDirection: "column", alignItems: "center", maxWidth: 400, margin: "0 auto", padding: "0 0 24px", opacity: loaded ? 1 : 0, transition: "opacity 0.4s ease" }}>
 
-      {/* Header */}
       <div style={{ width: "100%", padding: "14px 16px 12px", borderBottom: "1px solid #ffffff08", textAlign: "center" }}>
         <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: 0.5, marginBottom: 2 }}>RollTheBand</div>
         <div style={{ fontSize: 11, color: "#ffffff33", marginBottom: 10 }}>Game #{gameNum}</div>
@@ -339,7 +340,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Last game bar */}
       {history.length > 0 && (
         <div style={{ width: "100%", display: "flex", justifyContent: "space-between", padding: "7px 16px", background: "#1E2C3A", borderBottom: "1px solid #ffffff06", fontSize: 11 }}>
           <div style={{ color: "#ffffff44" }}>Last: <span style={{ color: "#FF4D4D" }}>{history[0].winner}</span> +${history[0].pot}</div>
@@ -347,7 +347,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Wheel */}
       <div style={{ position: "relative", width: 300, height: 300, margin: "16px auto 8px" }}>
         <div style={{ position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "10px solid transparent", borderRight: "10px solid transparent", borderTop: "20px solid #fff", zIndex: 3 }} />
         <canvas ref={canvasRef} width={300} height={300} style={{ display: "block" }} />
@@ -362,7 +361,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Stats — only your chance and bet */}
       <div style={{ display: "flex", gap: 8, padding: "0 16px", marginBottom: 14, width: "100%" }}>
         <div style={{ flex: 1, background: "#1E2C3A", borderRadius: 10, padding: "8px 12px", textAlign: "center" }}>
           <div style={{ fontSize: 10, color: "#ffffff33" }}>YOUR CHANCE</div>
@@ -378,7 +376,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Message input — only if player joined */}
       {myPlayer && !spinning && (
         <div style={{ width: "calc(100% - 32px)", marginBottom: 14 }}>
           <form onSubmit={handleSendMsg} style={{ display: "flex", gap: 8 }}>
@@ -396,7 +393,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Join form */}
       {showJoin && !spinning && (
         <div style={{ width: "calc(100% - 32px)", background: "#1E2C3A", border: "1px solid #ffffff10", borderRadius: 16, padding: 16, marginBottom: 14, animation: "fadeIn 0.3s ease" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
@@ -429,7 +425,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Join button */}
       {!showJoin && (
         <div style={{ width: "calc(100% - 32px)", marginBottom: 20 }}>
           <button onClick={() => !spinning && setShowJoin(true)} style={{ width: "100%", padding: "14px", fontSize: 15, fontWeight: 700, ...F, border: "none", borderRadius: 14, background: spinning ? "#1E2C3A" : "linear-gradient(135deg, #2AABEE, #00C896)", color: spinning ? "#ffffff22" : "#fff", cursor: spinning ? "not-allowed" : "pointer" }}>
@@ -438,7 +433,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Players list */}
       <div style={{ width: "calc(100% - 32px)" }}>
         {players.map(p => (
           <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "#1E2C3A", borderRadius: 14, marginBottom: 8 }}>
@@ -457,7 +451,6 @@ export default function App() {
         ))}
       </div>
 
-      {/* History */}
       {history.length > 0 && (
         <div style={{ width: "calc(100% - 32px)", marginTop: 16 }}>
           <div style={{ fontSize: 11, letterSpacing: 2, color: "#ffffff22", marginBottom: 10 }}>GAME HISTORY</div>
